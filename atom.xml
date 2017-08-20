@@ -1,0 +1,601 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>nullun_pages</title>
+  <subtitle>ing</subtitle>
+  <link href="/atom.xml" rel="self"/>
+  
+  <link href="http://nullun.tk/"/>
+  <updated>2017-08-20T14:11:55.335Z</updated>
+  <id>http://nullun.tk/</id>
+  
+  <author>
+    <name>Nullun</name>
+    
+  </author>
+  
+  <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>base64编码与ecb加密的特点    --从vagex谈起</title>
+    <link href="http://nullun.tk/encode-encrypt/base64%E7%BC%96%E7%A0%81%E4%B8%8Eecb%E5%8A%A0%E5%AF%86%E7%9A%84%E7%89%B9%E7%82%B9---%E4%BB%8Evagex%E8%B0%88%E8%B5%B7/"/>
+    <id>http://nullun.tk/encode-encrypt/base64编码与ecb加密的特点---从vagex谈起/</id>
+    <published>2017-07-23T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="声明：本文只做技术讨论"><a href="#声明：本文只做技术讨论" class="headerlink" title="声明：本文只做技术讨论"></a>声明：本文只做技术讨论</h2><h2 id="目录"><a href="#目录" class="headerlink" title="目录"></a>目录</h2><p>[TOC]</p>
+<h2 id="vagex"><a href="#vagex" class="headerlink" title="vagex?"></a>vagex?</h2><p>vagex是一个挂机浏览youtube送积分的项目，满$5可提现，可以借助Firefox和插件进行挂机。注册地址<a href="http://vagex.com/?ref=406379" target="_blank" rel="external"> http://vagex.com</a>。</p>
+<p>其中的arcade是vagex的另一个赚取积分的方式(<a href="http://vagex.com/members/arcade.php" target="_blank" rel="external">http://vagex.com/members/arcade.php</a>)可以通过每天玩几款swf小游戏赚取相应积分，前100名都有奖励。最高1000credits。</p>
+<p>借助F12大法和copy as curl获得了这几款游戏的上传积分的http request。顺便分析一下post 内容。</p>
+<h2 id="编码分析"><a href="#编码分析" class="headerlink" title="编码分析"></a>编码分析</h2><p>抓取post data（raw）如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">游戏一：</div><div class="line">KZ88dp8+3LuWN00arm2eyg==</div><div class="line">KZ88dp8+3LtdQnDP8rBKVg==</div><div class="line">游戏二：</div><div class="line">KZ88dp8+3LuPxnB72k3MMA==</div><div class="line">KZ88dp8+3LulaCNQzWoVow==</div><div class="line">游戏三：</div><div class="line">3KiObf2RGebKu7pjm715Eg==</div><div class="line">3KiObf2RGeY0k4o6aDZ2oA==</div><div class="line">游戏四：</div></pre></td></tr></table></figure>
+<ul>
+<li>特点一，前面部分相同，像base64</li>
+</ul>
+<p>游戏二比游戏一更容易取得高分，那么可以利用游戏二给游戏一刷分，用游戏二的data替换游戏一，成功将游戏二的积分刷到游戏一的积分榜。</p>
+<p>既然像base64，那么解码看看，以游戏一为例</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">)&lt;v&gt;ܻ7M®mÊ</div><div class="line">)&lt;v&gt;ܻÆp&#123;ÚMÌ0</div></pre></td></tr></table></figure>
+<ul>
+<li>特点二，解码后乱码，这也是base64的原因，把乱码编码成A-Ba-Z0-9+/的规整显示。</li>
+<li>特点三，解码后前部依旧相同，base64编码的顺序性，同时说明乱码是原数据加密后得到的，加密方式也具有顺序性，并且游戏一和游戏二采用了相同的数据格式和加密方式，包括密钥和加密方法。</li>
+</ul>
+<p>post解读到此为止，数据的抓取只能透露这么多内容。下面从swf入手，下载swf文件，深入内部，窥探究竟。搜索引擎flash反编译，下载安装试用30天足够了。将swf拖入。</p>
+<p>包结构</p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170723/102702475.png-wm" alt="mark"></p>
+<ul>
+<li>分析一：main入口，cyptocode加密函数，hurlant加密的类库(官网有惊喜)</li>
+</ul>
+<p>main方法入手</p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170723/102757604.png-wm" alt="mark"></p>
+<p>分析二：加密前原文数据格式uid+*delimiter*+time，密钥cryptocode，request地址符合f12抓包。</p>
+<p>进入cryptocode类，加解密方法</p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170723/103806403.png-wm" alt="mark"></p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170723/102859017.png-wm" alt="mark"></p>
+<ul>
+<li>分析三：加密方法des-ecb，符合前部分明文相同加密后密文相同的预期，其中pkcs5为填充方式。</li>
+<li>分析四：加解密流程</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">明文("uid+*delimiter*+time")                  ----&gt;</div><div class="line">密钥cryptocode(key)                           ----&gt;</div><div class="line">加密方法des-ecb(明文，key，pks5)               ----&gt;</div><div class="line">密文输出(encrypted)                           ----&gt;</div><div class="line">base64(encryped)                             加密结束</div></pre></td></tr></table></figure>
+<p>解密过程逆序即可。</p>
+<h2 id="编码重现"><a href="#编码重现" class="headerlink" title="编码重现"></a>编码重现</h2><p>java版本：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">byte</span>[] DES_ECB_Encrypt(<span class="keyword">byte</span>[] content, <span class="keyword">byte</span>[] keyBytes)&#123;		</div><div class="line">		<span class="keyword">try</span> &#123;</div><div class="line">			DESKeySpec keySpec=<span class="keyword">new</span> DESKeySpec(keyBytes);</div><div class="line">			SecretKeyFactory keyFactory=SecretKeyFactory.getInstance(<span class="string">"AES"</span>);			</div><div class="line">			SecretKey key=keyFactory.generateSecret(keySpec);		</div><div class="line">			Cipher cipher=Cipher.getInstance(<span class="string">"DES/ECB/PKCS5Pading"</span>);</div><div class="line">			cipher.init(Cipher.ENCRYPT_MODE, key);			</div><div class="line">			<span class="keyword">byte</span>[] reslt=cipher.doFinal(content);</div><div class="line">			<span class="keyword">return</span> result;</div><div class="line">		&#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">			System.out.println(<span class="string">"exception:"</span>+e.toString());</div><div class="line">		&#125;</div><div class="line">		<span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">	&#125;</div></pre></td></tr></table></figure>
+<h2 id="彩蛋"><a href="#彩蛋" class="headerlink" title="彩蛋"></a>彩蛋</h2><ul>
+<li><p>既然反编译出了as代码，直接搭建flash环境，copy大法，省去重建代码时间</p>
+</li>
+<li><p>搜索源文件的hurlant加密类库，找到官网demo，demo提供了一个swf 的加密测试<a href="http://crypto.hurlant.com/demo/" target="_blank" rel="external">http://crypto.hurlant.com/demo/</a>,</p>
+<p>直接输入参数即可加解密，完全省去本地代码。</p>
+</li>
+</ul>
+<h2 id="简单总结"><a href="#简单总结" class="headerlink" title="简单总结"></a>简单总结</h2><ul>
+<li>base64不是加密方式，只是让某些乱码看起来规整一些</li>
+<li>ecb的密文不够随机，特征明显，有缺陷</li>
+<li>代码需混淆，密钥不要硬编码</li>
+<li>更多编码与加密请参考refer的两篇文章</li>
+</ul>
+<h2 id="困惑"><a href="#困惑" class="headerlink" title="困惑"></a>困惑</h2><ul>
+<li>除了混淆（只是提高破解成本），如何有效防止异常提交数据或者识别异常数据？而在这种情况下异常数据的定义是什么？</li>
+<li>如何防止f12和copy as curl进行模拟提交？</li>
+</ul>
+<h2 id="REFERENCE"><a href="#REFERENCE" class="headerlink" title="REFERENCE"></a>REFERENCE</h2><p>关于base64</p>
+<p><a href="http://www.freebuf.com/articles/database/140773.html" target="_blank" rel="external">http://www.freebuf.com/articles/database/140773.html</a></p>
+<p>关于ecb</p>
+<p><a href="http://www.freebuf.com/news/topnews/56506.html" target="_blank" rel="external">http://www.freebuf.com/news/topnews/56506.html</a></p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;声明：本文只做技术讨论&quot;&gt;&lt;a href=&quot;#声明：本文只做技术讨论&quot; class=&quot;headerlink&quot; title=&quot;声明：本文只做技术讨论&quot;&gt;&lt;/a&gt;声明：本文只做技术讨论&lt;/h2&gt;&lt;h2 id=&quot;目录&quot;&gt;&lt;a href=&quot;#目录&quot; class=&quot;head
+    
+    </summary>
+    
+      <category term="encode&amp;encrypt" scheme="http://nullun.tk/categories/encode-encrypt/"/>
+    
+    
+      <category term="encrypt" scheme="http://nullun.tk/tags/encrypt/"/>
+    
+      <category term="encode" scheme="http://nullun.tk/tags/encode/"/>
+    
+      <category term="base64" scheme="http://nullun.tk/tags/base64/"/>
+    
+      <category term="des" scheme="http://nullun.tk/tags/des/"/>
+    
+      <category term="ecb" scheme="http://nullun.tk/tags/ecb/"/>
+    
+      <category term="vagex" scheme="http://nullun.tk/tags/vagex/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>python3笔记</title>
+    <link href="http://nullun.tk/python/python3%E7%AC%94%E8%AE%B0/"/>
+    <id>http://nullun.tk/python/python3笔记/</id>
+    <published>2017-07-11T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<ul>
+<li>print格式</li>
+</ul>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">print(<span class="string">'%010.05f'</span> % <span class="number">3.14</span>)</div><div class="line"><span class="string">'''</span></div><div class="line">010 : 输出总长度为10，不足的前面补0</div><div class="line">. : 小数点的位置，占一个长度</div><div class="line">05 : 小数点后面的长度为5，不足后面补0</div><div class="line">4 : 10-1-5 = 4,小数点前面长度为4,不足前面补0</div><div class="line">output:</div><div class="line">0003.14000</div><div class="line">'''</div></pre></td></tr></table></figure>
+<ul>
+<li><p>list tuple dict set</p>
+<p>可变与不可变</p>
+</li>
+<li><p>reference</p>
+</li>
+</ul>
+<ol>
+<li><a href="http://www.liaoxuefeng.com/wiki/0014316089557264a6b348958f449949df42a6d3a2e542c000" target="_blank" rel="external">http://www.liaoxuefeng.com/wiki/0014316089557264a6b348958f449949df42a6d3a2e542c000</a></li>
+</ol>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;ul&gt;
+&lt;li&gt;print格式&lt;/li&gt;
+&lt;/ul&gt;
+&lt;figure class=&quot;highlight python&quot;&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;gutter&quot;&gt;&lt;pre&gt;&lt;div class=&quot;line&quot;&gt;1&lt;/div&gt;&lt;div class=&quot;line&quot;&gt;2
+    
+    </summary>
+    
+      <category term="python" scheme="http://nullun.tk/categories/python/"/>
+    
+    
+      <category term="python" scheme="http://nullun.tk/tags/python/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>资源整理</title>
+    <link href="http://nullun.tk/vps/docker/%E8%B5%84%E6%BA%90%E6%95%B4%E7%90%86/"/>
+    <id>http://nullun.tk/vps/docker/资源整理/</id>
+    <published>2017-06-27T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="〇：目录"><a href="#〇：目录" class="headerlink" title="〇：目录"></a>〇：目录</h2><p>[TOC]</p>
+<h2 id="一：virtual-phone-amp-amp-virtual-card"><a href="#一：virtual-phone-amp-amp-virtual-card" class="headerlink" title="一：virtual phone &amp;&amp; virtual card"></a>一：virtual phone &amp;&amp; virtual card</h2><ul>
+<li><a href="https://voice.google.com" target="_blank" rel="external">https://voice.google.com</a></li>
+<li><a href="https://www.google.com/voice/?setup=1#setup/" target="_blank" rel="external">https://www.google.com/voice/?setup=1#setup/</a></li>
+<li><a href="https://www.textnow.com/messaging" target="_blank" rel="external">https://www.textnow.com/messaging</a></li>
+<li><a href="https://money.yandex.ru" target="_blank" rel="external">https://money.yandex.ru</a></li>
+<li><a href="https://money.yandex.ru/virtualcard/" target="_blank" rel="external">https://money.yandex.ru/virtualcard/</a></li>
+<li><a href="http://vagex.com/?ref=406379" target="_blank" rel="external">http://vagex.com/</a></li>
+</ul>
+<h2 id="二：vps-amp-docker"><a href="#二：vps-amp-docker" class="headerlink" title="二：vps &amp; docker"></a>二：vps &amp; docker</h2><ul>
+<li><a href="http://www.daocloud.io/" target="_blank" rel="external">http://www.daocloud.io/</a></li>
+<li><a href="https://console.hyper.sh/register/invite/YYxQYNGg1eUg4EN46Gw6uJMRKGAD5dFK" target="_blank" rel="external">https://console.hyper.sh</a></li>
+<li><a href="https://www.openshift.com/" target="_blank" rel="external">https://www.openshift.com/</a></li>
+<li><a href="https://bandwagonhost.com/aff.php?aff=15512" target="_blank" rel="external">https://bandwagonhost.com</a></li>
+<li><a href="https://bwh1.net/aff.php?aff=15512" target="_blank" rel="external">https://bwh1.net</a></li>
+<li><a href="http://www.vultr.com/?ref=7180259" target="_blank" rel="external">http://www.vultr.com/</a></li>
+<li><a href="http://guide.daocloud.io/dcs/dockerfile-9153584.html" target="_blank" rel="external">dockerfile</a></li>
+<li><a href="https://github.com/0x000001/dockerfiles" target="_blank" rel="external">https://github.com/0x000001/dockerfiles</a></li>
+</ul>
+<h2 id="三：ifttt-amp-amp-flow"><a href="#三：ifttt-amp-amp-flow" class="headerlink" title="三：ifttt &amp;&amp; flow"></a>三：ifttt &amp;&amp; flow</h2><ul>
+<li><a href="https://ifttt.com/" target="_blank" rel="external">https://ifttt.com/</a></li>
+<li><a href="https://flow.microsoft.com/" target="_blank" rel="external">https://flow.microsoft.com/</a></li>
+</ul>
+<h2 id="四：how-to-use-api"><a href="#四：how-to-use-api" class="headerlink" title="四：how to use api"></a>四：how to use api</h2><ul>
+<li><a href="http://docs.daocloud.io/api/" target="_blank" rel="external">http://docs.daocloud.io/api/</a></li>
+<li><a href="https://docs.hyper.sh/Reference/CLI/index.html" target="_blank" rel="external">https://docs.hyper.sh/Reference/CLI/index.html</a></li>
+</ul>
+<h2 id="五：脚本"><a href="#五：脚本" class="headerlink" title="五：脚本"></a>五：脚本</h2><ul>
+<li>gv.sh</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="comment">#nohup ./gv.sh &amp; </span></div><div class="line"><span class="comment">#run it on the vps with an US vps</span></div><div class="line"><span class="comment">#only need several minute</span></div><div class="line"><span class="function"><span class="title">contains</span></span>() &#123;</div><div class="line">    string=<span class="string">"<span class="variable">$1</span>"</span></div><div class="line">    substring=<span class="string">"<span class="variable">$2</span>"</span></div><div class="line">    <span class="keyword">if</span> <span class="built_in">test</span> <span class="string">"<span class="variable">$&#123;string#*$substring&#125;</span>"</span> != <span class="string">"<span class="variable">$string</span>"</span></div><div class="line">    <span class="keyword">then</span></div><div class="line">        <span class="built_in">return</span> 0    <span class="comment"># $substring is in $string</span></div><div class="line">    <span class="keyword">else</span></div><div class="line">        <span class="built_in">return</span> 1    <span class="comment"># $substring is not in $string</span></div><div class="line">    <span class="keyword">fi</span></div><div class="line">&#125;</div><div class="line"></div><div class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></div><div class="line">    result=$(curl <span class="_">-s</span> <span class="string">'https://www.google.com/voice/b/0/service/post'</span> -H <span class="string">'origin: https://www.google.com'</span> ... --compressed)</div><div class="line"><span class="comment">#copy from chrome as curl bash</span></div><div class="line"><span class="comment">#-s : 静默模式</span></div><div class="line">    contains <span class="string">"<span class="variable">$result</span>"</span> <span class="string">"error"</span> || <span class="built_in">exit</span> 0</div><div class="line">    sleep 1.5</div><div class="line"><span class="keyword">done</span></div></pre></td></tr></table></figure>
+<h2 id="六：REFERENCE"><a href="#六：REFERENCE" class="headerlink" title="六：REFERENCE"></a>六：REFERENCE</h2><ol>
+<li><a href="https://github.com/ruodeng/google-voice-click-continue" target="_blank" rel="external">https://github.com/ruodeng/google-voice-click-continue</a></li>
+<li><a href="http://www.138vps.com/freeot/958.html" target="_blank" rel="external">http://www.138vps.com/freeot/958.html</a></li>
+<li><a href="http://51.ruyo.net/p/1877.html" target="_blank" rel="external">http://51.ruyo.net/p/1877.html</a></li>
+<li><a href="http://guide.daocloud.io/dcs/dockerfile-9153584.html" target="_blank" rel="external">http://guide.daocloud.io/dcs/dockerfile-9153584.html</a></li>
+<li><a href="https://www.nbmao.com/archives/2936" target="_blank" rel="external">https://www.nbmao.com/archives/2936</a></li>
+<li><a href="https://wdicc.com/registration-about-google-voice/" target="_blank" rel="external">https://wdicc.com/registration-about-google-voice/</a></li>
+</ol>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;〇：目录&quot;&gt;&lt;a href=&quot;#〇：目录&quot; class=&quot;headerlink&quot; title=&quot;〇：目录&quot;&gt;&lt;/a&gt;〇：目录&lt;/h2&gt;&lt;p&gt;[TOC]&lt;/p&gt;
+&lt;h2 id=&quot;一：virtual-phone-amp-amp-virtual-card&quot;&gt;&lt;a hre
+    
+    </summary>
+    
+      <category term="vps" scheme="http://nullun.tk/categories/vps/"/>
+    
+      <category term="docker" scheme="http://nullun.tk/categories/vps/docker/"/>
+    
+    
+      <category term="docker" scheme="http://nullun.tk/tags/docker/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>Daocloud持续集成————Hexo博客自动发布系统</title>
+    <link href="http://nullun.tk/ci/daocloud/Daocloud%E6%8C%81%E7%BB%AD%E9%9B%86%E6%88%90%E2%80%94%E2%80%94%E2%80%94%E2%80%94Hexo%E5%8D%9A%E5%AE%A2%E8%87%AA%E5%8A%A8%E5%8F%91%E5%B8%83%E7%B3%BB%E7%BB%9F/"/>
+    <id>http://nullun.tk/ci/daocloud/Daocloud持续集成————Hexo博客自动发布系统/</id>
+    <published>2017-05-18T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="一-基本流程"><a href="#一-基本流程" class="headerlink" title="一: 基本流程"></a>一: 基本流程</h2><ul>
+<li>本地搭建hexo环境，安装主题，去除主题中的git设置文件，防止冲突，安装过程见hexo官方文档。配置文件，本地测试hexo。</li>
+<li>在coding建私仓，私有是因为这个仓库包含整个hexo源码以及各种配置文件，包括一些密钥。（一定不要public）。</li>
+<li>将本地的hexo整个目录push到刚才建的coding repository上。</li>
+<li>在daocloud上新建项目，连接刚才的coding repository。</li>
+<li>配置Dockerfile和daocloud.yml文件等，构建docker环境。</li>
+<li>下面是环境配置好后的CI流程（github不支持流程图语法请忽略源码，看图片）</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">st=&gt;start: Start</div><div class="line">e=&gt;end: End</div><div class="line">op1=&gt;operation: 将hexo push到coding</div><div class="line">op2=&gt;operation: coding更新，触发webhook，给daocloud发送消息</div><div class="line">op3=&gt;operation: daocloud接收更新通知，通过镜像构建docker环境，pull源码，执行hexo g -d，pages主页得到更新</div><div class="line">op4=&gt;operation: 执行发布完毕，daocloud更新docker镜像。继续等待coding更新通知</div><div class="line"></div><div class="line">st-&gt;op1-&gt;op2-&gt;op3-&gt;op4-&gt;e</div></pre></td></tr></table></figure>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170515/182853497.png-wm" alt="mark"></p>
+<h2 id="二-前期准备工作"><a href="#二-前期准备工作" class="headerlink" title="二: 前期准备工作"></a>二: 前期准备工作</h2><p>git操作，仓库创建，密钥生成，pages，域名绑定，hexo的配置等等通过官方文档均可自行打通。</p>
+<p>以及daocloud连接coding仓库的前面阶段均属于前期工作。（有大量文档资料）</p>
+<h2 id="三-Docker构建"><a href="#三-Docker构建" class="headerlink" title="三: Docker构建"></a>三: Docker构建</h2><ul>
+<li><p>前置阅读</p>
+<p><a href="http://qingmang.me/articles/-5314063564684608333" target="_blank" rel="external">http://qingmang.me/articles/-5314063564684608333</a>  </p>
+<p><a href="https://www.zhihu.com/question/52318924?sort=created" target="_blank" rel="external">https://www.zhihu.com/question/52318924?sort=created</a></p>
+</li>
+<li><p>问题一：原文章中的文件格式需要调整，yml版本和格式</p>
+</li>
+</ul>
+<ul>
+<li><p>问题二：初始docker镜像的打造，这是CI的环境，不创建成功没法进行编译测试发布，容易卡在这里</p>
+<ul>
+<li><p>当test 和buid 阶段报错进行不下去时，请在build阶段点击重试，创建镜像</p>
+<p>因为这是第一次初始化镜像，没有build好的镜像，test当然进行不了</p>
+</li>
+<li><p>当build成功以后，git push一下本地源码看test阶段是否成功</p>
+</li>
+<li><p>如果test阶段不成功，请查看日志查找问题</p>
+<ul>
+<li>如果是git的配置有问题，修改_config.yml，ssh方式注意上传密钥到指定位置，然后配置coding公钥</li>
+<li>也可以使用用户名口令的方式进行deploy，自行查阅git格式</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p>问题三：配置文件，修改相关的</p>
+</li>
+</ul>
+<p>daocloud.yml</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line"><span class="attr">version:</span> <span class="string">"2.0"</span></div><div class="line"><span class="attr">test:</span> </div><div class="line"><span class="attr">   image:</span> <span class="attr">your_image_url:latest</span></div><div class="line"><span class="attr">   install:</span> </div><div class="line"><span class="bullet">        -</span> <span class="string">npm</span> <span class="string">install</span></div><div class="line"><span class="attr">   before_script:</span> </div><div class="line"><span class="bullet">        -</span> <span class="string">mkdir</span> <span class="string">~/.ssh</span></div><div class="line"><span class="bullet">        -</span> <span class="string">mv</span> <span class="string">.daocloud/id_rsa</span> <span class="string">~/.ssh/id_rsa</span></div><div class="line"><span class="bullet">        -</span> <span class="string">mv</span> <span class="string">.daocloud/ssh_config</span> <span class="string">~/.ssh/config</span></div><div class="line"><span class="bullet">        -</span> <span class="string">chmod</span> <span class="number">600</span> <span class="string">~/.ssh/id_rsa</span></div><div class="line"><span class="bullet">        -</span> <span class="string">chmod</span> <span class="number">600</span> <span class="string">~/.ssh/config</span></div><div class="line"><span class="bullet">        -</span> <span class="string">eval</span> <span class="string">$(ssh-agent)</span></div><div class="line"><span class="bullet">        -</span> <span class="string">ssh-add</span> <span class="string">~/.ssh/id_rsa</span></div><div class="line"><span class="bullet">        -</span> <span class="string">rm</span> <span class="bullet">-rf</span> <span class="string">.daocloud</span></div><div class="line">        <span class="comment"># 配置git全局的用户名和邮件地址</span></div><div class="line"><span class="bullet">        -</span> <span class="string">git</span> <span class="string">config</span> <span class="bullet">--global</span> <span class="string">user.name</span> <span class="string">"your_git_name"</span></div><div class="line"><span class="bullet">        -</span> <span class="string">git</span> <span class="string">config</span> <span class="bullet">--global</span> <span class="string">user.email</span> <span class="string">"your_git_email"</span></div><div class="line"><span class="attr">   script:</span> </div><div class="line"><span class="bullet">        -</span> <span class="string">hexo</span> <span class="string">clean</span></div><div class="line">        <span class="comment">#下一行是插件的操作，没安装请删除下行</span></div><div class="line"><span class="bullet">        -</span> <span class="string">hexo</span> <span class="string">algolia</span></div><div class="line"><span class="bullet">        -</span> <span class="string">hexo</span> <span class="string">g</span> <span class="bullet">-d</span></div><div class="line">        <span class="comment"># 删除私钥文件夹</span></div><div class="line"><span class="bullet">        -</span> <span class="string">rm</span> <span class="bullet">-rf</span> <span class="string">~/.ssh/</span></div><div class="line"></div><div class="line"><span class="attr">build:</span> </div><div class="line"><span class="attr">   image:</span> </div><div class="line"><span class="attr">       dockerfile_path:</span> <span class="string">Dockerfile</span></div><div class="line"><span class="attr">       build_dir:</span> <span class="string">/</span></div><div class="line"><span class="attr">       cache:</span> <span class="literal">true</span></div></pre></td></tr></table></figure>
+<p>Dockerfile</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="comment"># Dockerfile</span></div><div class="line"></div><div class="line"><span class="keyword">FROM</span> node:latest</div><div class="line"><span class="keyword">MAINTAINER</span> your_name &lt;your_email&gt;</div><div class="line"><span class="comment">#下面两行解决npm权限报错问题</span></div><div class="line"><span class="keyword">RUN</span> npm config set user 0</div><div class="line"><span class="keyword">RUN</span> npm config set unsafe-perm true</div><div class="line"><span class="keyword">RUN</span> npm install -g hexo</div><div class="line"></div><div class="line"><span class="keyword">EXPOSE</span> <span class="number">4000</span></div></pre></td></tr></table></figure>
+<p>/.daocloud/ssh_config</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">StrictHostKeyChecking no</div><div class="line">UserKnownHostsFile /dev/null</div></pre></td></tr></table></figure>
+<p>/.daocloud/id_rsa</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="comment">#it's a secret</span></div></pre></td></tr></table></figure>
+<p>.gitignore</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">.DS_Store</div><div class="line">Thumbs.db</div><div class="line">*.log</div><div class="line">public/</div><div class="line">.deploy*/</div></pre></td></tr></table></figure>
+<p>_config.yml(这是ssh方式，配合上述的脚本，其他方式查看文档)</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">deploy:</div><div class="line">  type: git</div><div class="line">  repo: </div><div class="line">    coding: git@git.coding.net:yourcodingname/yourcodingname.coding.me.git,master</div><div class="line">    github: git@github.com:yourgithubname/yourgithubname.github.io.git,master</div></pre></td></tr></table></figure>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>hexo相关：</p>
+<p><a href="https://hexo.io/zh-cn/" target="_blank" rel="external">https://hexo.io/zh-cn/</a></p>
+<p><a href="http://theme-next.iissnan.com/" target="_blank" rel="external">http://theme-next.iissnan.com/</a></p>
+<p>daocloud相关：</p>
+<p><a href="http://qingmang.me/articles/-5314063564684608333" target="_blank" rel="external">http://qingmang.me/articles/-5314063564684608333</a></p>
+<p><a href="https://www.zhihu.com/question/52318924?sort=created" target="_blank" rel="external">https://www.zhihu.com/question/52318924?sort=created</a></p>
+<p>npm报错相关:</p>
+<p><a href="https://github.com/hexojs/hexo/issues/2505" target="_blank" rel="external">https://github.com/hexojs/hexo/issues/2505</a>   （ainjm给出npm配置正解）</p>
+<p><a href="https://docs.npmjs.com/misc/config" target="_blank" rel="external">https://docs.npmjs.com/misc/config</a>  （npm官方文档）</p>
+<h2 id="待续"><a href="#待续" class="headerlink" title="待续"></a>待续</h2><p>。。。</p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;一-基本流程&quot;&gt;&lt;a href=&quot;#一-基本流程&quot; class=&quot;headerlink&quot; title=&quot;一: 基本流程&quot;&gt;&lt;/a&gt;一: 基本流程&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;本地搭建hexo环境，安装主题，去除主题中的git设置文件，防止冲突，安装过程见hexo官方
+    
+    </summary>
+    
+      <category term="ci" scheme="http://nullun.tk/categories/ci/"/>
+    
+      <category term="daocloud" scheme="http://nullun.tk/categories/ci/daocloud/"/>
+    
+    
+      <category term="hexo" scheme="http://nullun.tk/tags/hexo/"/>
+    
+      <category term="next" scheme="http://nullun.tk/tags/next/"/>
+    
+      <category term="daocloud" scheme="http://nullun.tk/tags/daocloud/"/>
+    
+      <category term="docker" scheme="http://nullun.tk/tags/docker/"/>
+    
+      <category term="node" scheme="http://nullun.tk/tags/node/"/>
+    
+      <category term="npm" scheme="http://nullun.tk/tags/npm/"/>
+    
+      <category term="ci" scheme="http://nullun.tk/tags/ci/"/>
+    
+      <category term="git" scheme="http://nullun.tk/tags/git/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>hexo相关技巧</title>
+    <link href="http://nullun.tk/hexo/next/hello-world/"/>
+    <id>http://nullun.tk/hexo/next/hello-world/</id>
+    <published>2017-05-17T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="一：书写方式"><a href="#一：书写方式" class="headerlink" title="一：书写方式"></a>一：书写方式</h2><ul>
+<li>sublime替代hexo new [layout]</li>
+</ul>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170517/125437150.png-wm" alt="mark"></p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170517/125513110.png-wm" alt="mark"></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="string">&lt;snippet&gt;</span></div><div class="line">  <span class="string">&lt;content&gt;&lt;![CDATA[</span></div><div class="line"><span class="meta">---</span></div><div class="line"><span class="attr">title:</span> <span class="string">$&#123;1:$TM_FILENAME$2&#125;</span></div><div class="line"><span class="attr">date:</span> <span class="string">$&#123;3:2017&#125;-$&#123;4:&#125;-$&#123;5:&#125;</span></div><div class="line"><span class="attr">tags:</span> <span class="string">[$&#123;6:&#125;]</span></div><div class="line"><span class="attr">categories:</span> <span class="string">[</span> <span class="string">$&#123;7:&#125;]</span></div><div class="line"><span class="attr">comments:</span> <span class="string">$&#123;8:true&#125;</span></div><div class="line"><span class="meta">---</span></div><div class="line"><span class="string">]]&gt;&lt;/content&gt;</span></div><div class="line">  <span class="string">&lt;tabTrigger&gt;hexo&lt;/tabTrigger&gt;</span></div><div class="line">  <span class="string">&lt;description&gt;hexo</span> <span class="string">head&lt;/description&gt;</span></div><div class="line"><span class="string">&lt;/snippet&gt;</span></div></pre></td></tr></table></figure>
+<p>效果</p>
+<p><img src="http://oprk3pjw9.bkt.clouddn.com/pic/20170517/125554436.gif-wm" alt="mark"></p>
+<p>剩下的可以借助sublime markdown插件来完成写作，或者拷贝到其他编辑器来写作，比如即使预览的typora。</p>
+<p>（等待typora的自定义snippet功能）</p>
+<p>关于sublime更多<a href="http://docs.sublimetext.info/en/latest/extensibility/snippets.html?highlight=snippet" target="_blank" rel="external">http://docs.sublimetext.info/en/latest/extensibility/snippets.html?highlight=snippet</a></p>
+<h2 id="二：配置与插件"><a href="#二：配置与插件" class="headerlink" title="二：配置与插件"></a>二：配置与插件</h2><ul>
+<li>站内搜索更新索引</li>
+<li>搜索服务申请<a href="https://www.algolia.com/referrals/5224d0f1/join" target="_blank" rel="external">https://www.algolia.com/referrals/5224d0f1/join</a></li>
+</ul>
+<p>增加文章或者删改文章需要<code>hexo algolia</code> 来手动更新 Index</p>
+<p>更多<a href="http://theme-next.iissnan.com/third-party-services.html#comment-system" target="_blank" rel="external">http://theme-next.iissnan.com/third-party-services.html#comment-system</a></p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;一：书写方式&quot;&gt;&lt;a href=&quot;#一：书写方式&quot; class=&quot;headerlink&quot; title=&quot;一：书写方式&quot;&gt;&lt;/a&gt;一：书写方式&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;sublime替代hexo new [layout]&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img sr
+    
+    </summary>
+    
+      <category term="hexo" scheme="http://nullun.tk/categories/hexo/"/>
+    
+      <category term="next" scheme="http://nullun.tk/categories/hexo/next/"/>
+    
+    
+      <category term="hexo" scheme="http://nullun.tk/tags/hexo/"/>
+    
+      <category term="next" scheme="http://nullun.tk/tags/next/"/>
+    
+      <category term="config" scheme="http://nullun.tk/tags/config/"/>
+    
+      <category term="sublime" scheme="http://nullun.tk/tags/sublime/"/>
+    
+      <category term="snippet" scheme="http://nullun.tk/tags/snippet/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>希腊字母表</title>
+    <link href="http://nullun.tk/math/alphabet/%E5%B8%8C%E8%85%8A%E5%AD%97%E6%AF%8D%E8%A1%A8/"/>
+    <id>http://nullun.tk/math/alphabet/希腊字母表/</id>
+    <published>2016-12-07T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<table>
+<thead>
+<tr>
+<th>希腊字母</th>
+<th>国际音标</th>
+<th>大写字母</th>
+<th>小写字母</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>alpha</td>
+<td>/‘ælfə/</td>
+<td>Α</td>
+<td>α</td>
+</tr>
+<tr>
+<td>beta</td>
+<td>/‘bi:tə/或/‘beɪtə/</td>
+<td>Β</td>
+<td>β</td>
+</tr>
+<tr>
+<td>gamma</td>
+<td>/‘gæmə/</td>
+<td>Γ</td>
+<td>γ</td>
+</tr>
+<tr>
+<td>delta</td>
+<td>/‘deltə/</td>
+<td>Δ</td>
+<td>δ</td>
+</tr>
+<tr>
+<td>epsilon</td>
+<td>/‘epsɪlɒn/</td>
+<td>Ε</td>
+<td>ε</td>
+</tr>
+<tr>
+<td>zeta</td>
+<td>/‘zi:tə/</td>
+<td>Ζ</td>
+<td>ζ</td>
+</tr>
+<tr>
+<td>eta</td>
+<td>/‘i:tə/</td>
+<td>Η</td>
+<td>η</td>
+</tr>
+<tr>
+<td>theta</td>
+<td>/‘θi:tə/</td>
+<td>Θ</td>
+<td>θ</td>
+</tr>
+<tr>
+<td>iota</td>
+<td>/aɪ’əʊtə/</td>
+<td>Ι</td>
+<td>ι ℩</td>
+</tr>
+<tr>
+<td>kappa</td>
+<td>/‘kæpə/</td>
+<td>Κ</td>
+<td>κ</td>
+</tr>
+<tr>
+<td>lambda</td>
+<td>/‘læmdə/</td>
+<td>Λ</td>
+<td>λ</td>
+</tr>
+<tr>
+<td>mu</td>
+<td>/mju:/</td>
+<td>Μ</td>
+<td>μ</td>
+</tr>
+<tr>
+<td>nu</td>
+<td>/nju:/</td>
+<td>Ν</td>
+<td>ν</td>
+</tr>
+<tr>
+<td>xi</td>
+<td>/ksi/</td>
+<td>Ξ</td>
+<td>ξ</td>
+</tr>
+<tr>
+<td>omicron</td>
+<td>/əuˈmaikrən/或/ˈɑmɪˌkrɑn/</td>
+<td>Ο</td>
+<td>ο</td>
+</tr>
+<tr>
+<td>pi</td>
+<td>/paɪ/</td>
+<td>Π</td>
+<td>π</td>
+</tr>
+<tr>
+<td>rho</td>
+<td>/rəʊ/</td>
+<td>Ρ</td>
+<td>ρ</td>
+</tr>
+<tr>
+<td>sigma</td>
+<td>/‘sɪɡmə/</td>
+<td>Σ</td>
+<td>σ</td>
+</tr>
+<tr>
+<td>tau</td>
+<td>/tɔ:/或/taʊ/</td>
+<td>Τ</td>
+<td>τ</td>
+</tr>
+<tr>
+<td>upsilon</td>
+<td>/ˈipsilon/或/ˈʌpsɨlɒn/</td>
+<td>Υ</td>
+<td>υ</td>
+</tr>
+<tr>
+<td>phi</td>
+<td>/faɪ/</td>
+<td>Φ</td>
+<td>φ</td>
+</tr>
+<tr>
+<td>chi</td>
+<td>/kaɪ/</td>
+<td>Χ</td>
+<td>χ</td>
+</tr>
+<tr>
+<td>psi</td>
+<td>/psaɪ/</td>
+<td>Ψ</td>
+<td>ψ</td>
+</tr>
+<tr>
+<td>omega</td>
+<td>/‘əʊmɪɡə/或/oʊ’meɡə/</td>
+<td>Ω</td>
+<td>ω</td>
+</tr>
+</tbody>
+</table>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;希腊字母&lt;/th&gt;
+&lt;th&gt;国际音标&lt;/th&gt;
+&lt;th&gt;大写字母&lt;/th&gt;
+&lt;th&gt;小写字母&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;alpha&lt;/td&gt;
+&lt;td&gt;/‘ælfə/&lt;/td&gt;
+&lt;td
+    
+    </summary>
+    
+      <category term="math" scheme="http://nullun.tk/categories/math/"/>
+    
+      <category term="alphabet" scheme="http://nullun.tk/categories/math/alphabet/"/>
+    
+    
+      <category term="math" scheme="http://nullun.tk/tags/math/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>停用flash的p2p上传</title>
+    <link href="http://nullun.tk/chrome/flash/flash%20player%E8%AE%BE%E7%BD%AE/"/>
+    <id>http://nullun.tk/chrome/flash/flash player设置/</id>
+    <published>2016-12-01T00:00:00.000Z</published>
+    <updated>2017-08-20T14:11:55.335Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="一-修改文件"><a href="#一-修改文件" class="headerlink" title="一.修改文件"></a>一.修改文件</h2><pre><code>修改\windows\system32\Macromed\Flash\mms.cfg 文件    
+RTMFPP2PDisable=1
+</code></pre><p> 操作如下：</p>
+<ol>
+<li>使用文字编辑器打开（或新建）mms.cfg</li>
+<li><p>添加如下配置语句:</p>
+<pre><code>AutoUpdateDisable=1
+WindowlessDisable=1
+RTMFPP2PDisable=1
+</code></pre></li>
+<li><p>保存mms.cfg文件</p>
+</li>
+<li>关闭重启Flash Player以及浏览器。</li>
+</ol>
+<h2 id="二-修改配置"><a href="#二-修改配置" class="headerlink" title="二.修改配置"></a>二.修改配置</h2><p>进入控制面板进行player设置</p>
+<h2 id="三-chrome内核浏览器的配置"><a href="#三-chrome内核浏览器的配置" class="headerlink" title="三.chrome内核浏览器的配置"></a>三.chrome内核浏览器的配置</h2><p>右键flash视频选择全局设置,进入设置页面,禁用p2p。</p>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;h2 id=&quot;一-修改文件&quot;&gt;&lt;a href=&quot;#一-修改文件&quot; class=&quot;headerlink&quot; title=&quot;一.修改文件&quot;&gt;&lt;/a&gt;一.修改文件&lt;/h2&gt;&lt;pre&gt;&lt;code&gt;修改\windows\system32\Macromed\Flash\mms.cfg 文件 
+    
+    </summary>
+    
+      <category term="chrome" scheme="http://nullun.tk/categories/chrome/"/>
+    
+      <category term="flash" scheme="http://nullun.tk/categories/chrome/flash/"/>
+    
+    
+      <category term="flash player" scheme="http://nullun.tk/tags/flash-player/"/>
+    
+      <category term="windows" scheme="http://nullun.tk/tags/windows/"/>
+    
+      <category term="chrome" scheme="http://nullun.tk/tags/chrome/"/>
+    
+      <category term="settings" scheme="http://nullun.tk/tags/settings/"/>
+    
+  </entry>
+  
+</feed>
